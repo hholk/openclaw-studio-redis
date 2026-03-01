@@ -38,7 +38,7 @@ export const GatewayConnectScreen = ({
 }: GatewayConnectScreenProps) => {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [showToken, setShowToken] = useState(false);
-  const redisTransportMode = process.env.NEXT_PUBLIC_GATEWAY_TRANSPORT === "redis";
+  const redisTransportMode = true;
   const isLocal = useMemo(() => isLocalGatewayUrl(gatewayUrl), [gatewayUrl]);
   const localPort = useMemo(() => resolveLocalGatewayPort(gatewayUrl), [gatewayUrl]);
   const localGatewayCommand = useMemo(
