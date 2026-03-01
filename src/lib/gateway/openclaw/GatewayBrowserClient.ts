@@ -1,5 +1,6 @@
 import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
 import { GatewayResponseError } from "@/lib/gateway/errors";
+import { RedisSocket } from "./RedisSocket";
 
 const GATEWAY_CLIENT_NAMES = {
   CONTROL_UI: "openclaw-control-ui",
@@ -388,7 +389,7 @@ function truncateWsCloseReason(reason: string, maxBytes = WS_CLOSE_REASON_MAX_BY
 }
 
 export class GatewayBrowserClient {
-  private ws: WebSocket | null = null;
+  private ws: (WebSocket | RedisSocket) | null = null;
   private pending = new Map<string, Pending>();
   private closed = false;
   private lastSeq: number | null = null;
@@ -417,10 +418,12 @@ export class GatewayBrowserClient {
 
   private connect() {
     if (this.closed) return;
-    this.ws = new WebSocket(this.opts.url);
+    const useRedisTransport = (globalThis as any).__OPENCLAW_REDIS_TRANSPORT__ === true ||
+      process.env.NEXT_PUBLIC_GATEWAY_TRANSPORT === "redis";
+    this.ws = useRedisTransport ? new RedisSocket(this.opts.url) : new WebSocket(this.opts.url);
     this.ws.onopen = () => this.queueConnect();
-    this.ws.onmessage = (ev) => this.handleMessage(String(ev.data ?? ""));
-    this.ws.onclose = (ev) => {
+    this.ws.onmessage = (ev: any) => this.handleMessage(String(ev?.data ?? ""));
+    this.ws.onclose = (ev: any) => {
       const reason = String(ev.reason ?? "");
       this.ws = null;
       this.flushPending(new Error(`gateway closed (${ev.code}): ${reason}`));
