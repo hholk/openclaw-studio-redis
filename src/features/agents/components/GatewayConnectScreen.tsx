@@ -38,6 +38,7 @@ export const GatewayConnectScreen = ({
 }: GatewayConnectScreenProps) => {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [showToken, setShowToken] = useState(false);
+  const redisTransportMode = process.env.NEXT_PUBLIC_GATEWAY_TRANSPORT === "redis";
   const isLocal = useMemo(() => isLocalGatewayUrl(gatewayUrl), [gatewayUrl]);
   const localPort = useMemo(() => resolveLocalGatewayPort(gatewayUrl), [gatewayUrl]);
   const localGatewayCommand = useMemo(
@@ -49,6 +50,12 @@ export const GatewayConnectScreen = ({
     [localPort]
   );
   const statusCopy = useMemo(() => {
+    if (redisTransportMode && status === "connecting") {
+      return "Connecting via Redis bridge…";
+    }
+    if (redisTransportMode) {
+      return "Redis bridge mode active. Tap Connect to start.";
+    }
     if (status === "connecting" && isLocal) {
       return `Local gateway detected on port ${localPort}. Connecting…`;
     }
@@ -59,7 +66,7 @@ export const GatewayConnectScreen = ({
       return "No local gateway found.";
     }
     return "Not connected to a gateway.";
-  }, [isLocal, localPort, status]);
+  }, [isLocal, localPort, status, redisTransportMode]);
   const connectDisabled = status === "connecting";
   const connectLabel = connectDisabled ? "Connecting…" : "Connect";
   const statusDotClass =
@@ -123,10 +130,21 @@ export const GatewayConnectScreen = ({
       </label>
 
       <div className="space-y-0.5 text-xs text-muted-foreground/90">
-        <p className="font-medium text-foreground/85">Using Tailscale?</p>
-        <p>
-          URL: <span className="font-mono">wss://&lt;your-tailnet-host&gt;</span>
-        </p>
+        {redisTransportMode ? (
+          <>
+            <p className="font-medium text-foreground/85">Redis bridge enabled</p>
+            <p>
+              URL/token are kept for compatibility. Transport is routed via Redis.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-medium text-foreground/85">Using Tailscale?</p>
+            <p>
+              URL: <span className="font-mono">wss://&lt;your-tailnet-host&gt;</span>
+            </p>
+          </>
+        )}
       </div>
 
       <label className="flex flex-col gap-1 text-[11px] font-medium text-foreground/80">
@@ -161,7 +179,7 @@ export const GatewayConnectScreen = ({
         onClick={onConnect}
         disabled={connectDisabled || !gatewayUrl.trim()}
       >
-        {connectLabel}
+        {connectDisabled ? "Connecting…" : redisTransportMode ? "Connect via Redis bridge" : connectLabel}
       </button>
 
       {status === "connecting" ? (
@@ -192,9 +210,13 @@ export const GatewayConnectScreen = ({
       <div className="ui-card px-4 py-5 sm:px-6">
         <div>
           <p className="font-mono text-[10px] font-medium tracking-[0.06em] text-muted-foreground">
-            Remote gateway (recommended)
+            {redisTransportMode ? "Redis bridge (active)" : "Remote gateway (recommended)"}
           </p>
-          <p className="mt-2 text-sm text-foreground/85">Default: enter your URL and token to connect.</p>
+          <p className="mt-2 text-sm text-foreground/85">
+            {redisTransportMode
+              ? "This deployment uses a Redis relay to reach your local gateway safely."
+              : "Default: enter your URL and token to connect."}
+          </p>
         </div>
         {remoteForm}
       </div>
