@@ -1,0 +1,5 @@
+server/
+tests/
+test-results/
+playwright.config.ts
+vitest.config.ts
