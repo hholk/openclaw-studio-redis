@@ -1,8 +1,29 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Check, Copy, Eye, EyeOff, Loader2 } from "lucide-react";
 import type { GatewayStatus } from "@/lib/gateway/GatewayClient";
 import { isLocalGatewayUrl } from "@/lib/gateway/local-gateway";
 import type { StudioGatewaySettings } from "@/lib/studio/settings";
+
+type TransportMode = "redis" | "local";
+
+function getStoredTransportMode(): TransportMode {
+  if (typeof window === "undefined") return "redis";
+  try {
+    const stored = localStorage.getItem("studio:transport:mode");
+    if (stored === "local" || stored === "redis") return stored;
+    return "redis"; // Default for Vercel deployments
+  } catch {
+    return "redis";
+  }
+}
+
+function setStoredTransportMode(mode: TransportMode) {
+  try {
+    localStorage.setItem("studio:transport:mode", mode);
+  } catch {
+    // ignore
+  }
+}
 
 type GatewayConnectScreenProps = {
   gatewayUrl: string;
@@ -38,7 +59,22 @@ export const GatewayConnectScreen = ({
 }: GatewayConnectScreenProps) => {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [showToken, setShowToken] = useState(false);
-  const redisTransportMode = true;
+  const [transportMode, setTransportMode] = useState<TransportMode>("redis");
+  
+  // Load stored transport mode on mount
+  useEffect(() => {
+    setTransportMode(getStoredTransportMode());
+  }, []);
+  
+  const redisTransportMode = transportMode === "redis";
+  
+  const handleTransportModeChange = (mode: TransportMode) => {
+    setTransportMode(mode);
+    setStoredTransportMode(mode);
+    // Trigger page reload to apply new transport mode
+    window.location.reload();
+  };
+  
   const isLocal = useMemo(() => isLocalGatewayUrl(gatewayUrl), [gatewayUrl]);
   const localPort = useMemo(() => resolveLocalGatewayPort(gatewayUrl), [gatewayUrl]);
   const localGatewayCommand = useMemo(
@@ -218,6 +254,41 @@ export const GatewayConnectScreen = ({
               : "Default: enter your URL and token to connect."}
           </p>
         </div>
+        
+        {/* Transport Mode Toggle */}
+        <div className="mt-4 flex flex-col gap-2">
+          <p className="text-[11px] font-medium text-foreground/80">Transport Mode</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleTransportModeChange("redis")}
+              className={`flex-1 rounded-md px-4 py-2 text-xs font-medium transition-colors ${
+                redisTransportMode
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              Redis Bridge
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTransportModeChange("local")}
+              className={`flex-1 rounded-md px-4 py-2 text-xs font-medium transition-colors ${
+                !redisTransportMode
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              Local Gateway
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            {redisTransportMode
+              ? "Routes via Upstash Redis (works on Vercel)"
+              : "Direct WebSocket to local gateway (requires Tailscale/port-forward)"}
+          </p>
+        </div>
+        
         {remoteForm}
       </div>
 

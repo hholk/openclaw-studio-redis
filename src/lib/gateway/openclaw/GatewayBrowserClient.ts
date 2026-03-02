@@ -418,8 +418,26 @@ export class GatewayBrowserClient {
 
   private connect() {
     if (this.closed) return;
-    const useRedisTransport = (globalThis as any).__OPENCLAW_REDIS_TRANSPORT__ === true ||
-      process.env.NEXT_PUBLIC_GATEWAY_TRANSPORT === "redis";
+    
+    // Runtime transport mode check (LocalStorage > Env > Default=Redis)
+    let useRedisTransport = true; // Default to Redis for Vercel deployments
+    try {
+      const storedMode = localStorage.getItem("studio:transport:mode");
+      if (storedMode === "local") {
+        useRedisTransport = false;
+      } else if (storedMode === "redis") {
+        useRedisTransport = true;
+      } else {
+        // No LocalStorage setting - check Env (build-time)
+        useRedisTransport = (globalThis as any).__OPENCLAW_REDIS_TRANSPORT__ === true ||
+          process.env.NEXT_PUBLIC_GATEWAY_TRANSPORT === "redis";
+      }
+    } catch {
+      // LocalStorage not available, fallback to Env
+      useRedisTransport = (globalThis as any).__OPENCLAW_REDIS_TRANSPORT__ === true ||
+        process.env.NEXT_PUBLIC_GATEWAY_TRANSPORT === "redis";
+    }
+    
     this.ws = useRedisTransport ? new RedisSocket(this.opts.url) : new WebSocket(this.opts.url);
     this.ws.onopen = () => this.queueConnect();
     this.ws.onmessage = (ev: any) => this.handleMessage(String(ev?.data ?? ""));
